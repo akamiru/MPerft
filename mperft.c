@@ -728,14 +728,10 @@ void generate_checkers(Board *board) {
 	*checkers = partial_checkers = b & bq;
 
 	// pinned square
+	Bitboard pinners = 0;
+
 	b &= board->color[c];
-	if (b) {
-		b = bishop_attack(pieces ^ b, k, bq ^ partial_checkers);
-		while (b) {
-			x = square_next(&b);
-			*pinned |= MASK[x].between[k] & board->color[c];
-		}
-	}
+	if (b) pinners ^= bishop_attack(pieces ^ b, k, bq ^ partial_checkers);
 
 	// rook or queen: all square reachable from the king square.
 	b = rook_attack(pieces, k, -1ull);
@@ -745,12 +741,15 @@ void generate_checkers(Board *board) {
 
 	// pinned square
 	b &= board->color[c];
-	if (b) {
-		b = rook_attack(pieces ^ b, k, rq ^ partial_checkers);
-		while (b) {
-			x = square_next(&b);
-			*pinned |= MASK[x].between[k] & board->color[c];
-		}
+	if (b) pinners ^= rook_attack(pieces ^ b, k, rq ^ partial_checkers);
+
+#if defined(POPCOUNT)
+	if (pinners) for (int i = count_moves(pinners); i--; ) {
+#else
+	while (pinners) {
+#endif
+		x = square_next(&pinners);
+		*pinned |= MASK[x].between[k] & board->color[c];
 	}
 
 	// other pieces (no more pins)
