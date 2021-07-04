@@ -714,7 +714,7 @@ void generate_checkers(Board *board) {
 	const Bitboard rq = (board->piece[ROOK] + board->piece[QUEEN]) & board->color[o];
 	const Bitboard pieces = board->color[WHITE] + board->color[BLACK];
 	Bitboard partial_checkers;
-	Bitboard b;
+	Bitboard b, pinners = 0;
 	Bitboard *pinned = &board->stack->pinned;
 	Bitboard *checkers = &board->stack->checkers;
 	Square x;
@@ -728,10 +728,8 @@ void generate_checkers(Board *board) {
 	*checkers = partial_checkers = b & bq;
 
 	// pinned square
-	Bitboard pinners = 0;
-
 	b &= board->color[c];
-	if (b) pinners ^= bishop_attack(pieces ^ b, k, bq ^ partial_checkers);
+	pinners |= bishop_attack(pieces ^ b, k, bq ^ partial_checkers);
 
 	// rook or queen: all square reachable from the king square.
 	b = rook_attack(pieces, k, -1ull);
@@ -741,15 +739,12 @@ void generate_checkers(Board *board) {
 
 	// pinned square
 	b &= board->color[c];
-	if (b) pinners ^= rook_attack(pieces ^ b, k, rq ^ partial_checkers);
+	pinners |= rook_attack(pieces ^ b, k, rq ^ partial_checkers);
 
-#if defined(POPCOUNT)
-	if (pinners) for (int i = count_moves(pinners); i--; ) {
-#else
+	// pinned pieces
 	while (pinners) {
-#endif
 		x = square_next(&pinners);
-		*pinned |= MASK[x].between[k] & board->color[c];
+		*pinned |= MASK[x].between[k];
 	}
 
 	// other pieces (no more pins)
@@ -895,17 +890,16 @@ void board_update(Board *board, const Move move) {
 	Bitboard b;
 
 	// update chess board informations
-	next->castling = current->castling;
 	next->enpassant = 64;
 	next->victim = 0;
-	next->castling &= MASK_CASTLING[from] & MASK_CASTLING[to];
+	next->castling = current->castling & MASK_CASTLING[from] & MASK_CASTLING[to];
 	// move the piece
-	board->piece[p] ^= b_from;
-	board->piece[p] ^= b_to;
+	board->piece[p] ^= b_from | b_to;
 	board->color[c] ^= b_from | b_to;
 	board->cpiece[from] = EMPTY;
 	board->cpiece[to] = cp;
 	// capture
+
 	if (victim) {
 		board->piece[cpiece_piece(victim)] ^= b_to;
 		board->color[cpiece_color(victim)] ^= b_to;
